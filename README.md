@@ -22,5 +22,6 @@ go run worker.go kafka_host:port
 finally post request to http://localhost:8080/urlapi
 
 raw json req body:
-
+```
 ["https://anywebsitewithmail1", "https://anywebsitewithmail2"]
+```
