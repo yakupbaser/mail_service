@@ -16,11 +16,18 @@ import (
 func main() {
 	log.Println("Starting maillogger")
 
-	// container için
-	db, err := sql.Open("postgres", "postgres://user:password@postgres:5432/mydb?sslmode=disable")
+	var postresHost string
+	var brokers []string
 
-	// dışarıdan çalıştırmak için:
-	//db, err := sql.Open("postgres", "postgres://user:password@127.0.0.1:5432/mydb?sslmode=disable")
+	if isRunningInContainer() {
+		postresHost = "postgres://user:password@postgres:5432/mydb?sslmode=disable"
+		brokers = []string{os.Getenv("KAFKA_HOST")}
+	} else {
+		postresHost = "postgres://user:password@127.0.0.1:5432/mydb?sslmode=disable"
+		brokers = []string{"localhost:9092"}
+	}
+
+	db, err := sql.Open("postgres", postresHost)
 
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
@@ -42,15 +49,8 @@ func main() {
 		log.Fatalf("Failed to create table: %v", err)
 	}
 
-	// container'dan çalıştırmak için:
-	var kafkaHost = os.Getenv("KAFKA_HOST")
-
 	config := kafka.ReaderConfig{
-		// containerdan çalıştırmak için
-		Brokers: []string{kafkaHost},
-
-		// dışarıdan çalıştırmak için
-		// Brokers:  []string{"localhost:9092"},
+		Brokers:  brokers,
 		GroupID:  "maillogger",
 		Topic:    "mails",
 		MinBytes: 10e3,
@@ -103,4 +103,11 @@ func main() {
 			reader.CommitMessages(context.Background(), m)
 		}
 	}
+}
+
+func isRunningInContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err != nil {
+		return false
+	}
+	return true
 }

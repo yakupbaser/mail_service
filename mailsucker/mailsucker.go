@@ -13,7 +13,16 @@ import (
 var kafkaTopic = "mailsucker_urls"
 
 func main() {
-	var kafkaHost = os.Getenv("KAFKA_HOST")
+	log.Println("Starting mailsucker")
+
+	var kafkaHost string
+
+	if isRunningInContainer() {
+		kafkaHost = os.Getenv("KAFKA_HOST")
+	} else {
+		kafkaHost = "localhost:29092"
+	}
+
 	http.HandleFunc("/urlapi", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -50,4 +59,11 @@ func main() {
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func isRunningInContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err != nil {
+		return false
+	}
+	return true
 }
