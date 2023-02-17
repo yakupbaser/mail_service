@@ -24,7 +24,7 @@ func main() {
 		brokers = []string{os.Getenv("KAFKA_HOST")}
 	} else {
 		postresHost = "postgres://user:password@127.0.0.1:5432/mydb?sslmode=disable"
-		brokers = []string{"localhost:9092"}
+		brokers = []string{"localhost:29092"}
 	}
 
 	db, err := sql.Open("postgres", postresHost)
