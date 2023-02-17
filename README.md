@@ -1,4 +1,4 @@
-# mail_service by Yakup BAŞER
+# mail_service
 
 It extracts the mails in the posted url list and saves them to the db.
 
