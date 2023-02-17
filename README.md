@@ -1,5 +1,7 @@
 # mail_service by Yakup BAŞER
 
+It extracts the mails in the posted url and saves them to the db.
+
 ### install
 
 cd mail_service
@@ -17,4 +19,4 @@ finally post request to http://localhost:8080/urlapi
 
 raw json req body:
 
-["https://www.imo.org/en/about/pages/contactus.aspx"]
+["https://anysitewithmail"]
