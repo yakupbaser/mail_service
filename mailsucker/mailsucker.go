@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-var kafkaTopic = "mailsucker_urls"
+var kafkaTopic = "mailsucker_html"
 
 func main() {
 	log.Println("Starting mailsucker")
@@ -20,7 +21,7 @@ func main() {
 	if isRunningInContainer() {
 		kafkaHost = os.Getenv("KAFKA_HOST")
 	} else {
-		kafkaHost = "localhost:29092"
+		kafkaHost = "localhost:9092"
 	}
 
 	http.HandleFunc("/urlapi", func(w http.ResponseWriter, r *http.Request) {
@@ -44,15 +45,38 @@ func main() {
 		}
 		defer conn.Close()
 
-		messages := make([]kafka.Message, len(urlList))
-		for i, url := range urlList {
-			messages[i] = kafka.Message{Key: []byte(url)}
-		}
+		for _, url := range urlList {
+			resp, err := http.Get(url)
+			if err != nil {
+				log.Printf("Error getting URL: %v", err)
+				continue
+			}
 
-		if _, err := conn.WriteMessages(messages...); err != nil {
-			log.Printf("Error writing messages to Kafka: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("Error reading response body: %v", err)
+				continue
+			}
+
+			if len(body) > 0 {
+				chunkSize := 16384 // 16 KB
+				for i := 0; i < len(body); i += chunkSize {
+					end := i + chunkSize
+					if end > len(body) {
+						end = len(body)
+					}
+					message := kafka.Message{
+						Key:   []byte(url),
+						Value: body[i:end],
+					}
+					if _, err := conn.WriteMessages(message); err != nil {
+						log.Printf("Error writing message to Kafka: %v", err)
+						continue
+					}
+				}
+			}
+
+			resp.Body.Close()
 		}
 
 		w.WriteHeader(http.StatusOK)

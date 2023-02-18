@@ -9,8 +9,8 @@ cd mail_service
 docker-compose -up --build
 ```
 
-sometimes kafka causes trouble. So stop the kafka and turn it back on.
-then run worker on any pc
+sometimes kafka and postgres causes trouble. So stop the kafka and turn it back on. 
+then run worker on any pc. make sure postgres is running. If it doesn't work, try starting it again.
 
 If the worker and mailsucker are on the same network, 
 there is no need to pass kafka_host as a parameter.

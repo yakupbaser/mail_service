@@ -6,15 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"strings"
 	"syscall"
 
-	"github.com/gocolly/colly"
 	"github.com/segmentio/kafka-go"
 )
 
 var kafkaHost = "localhost:9092"
-var kafkaTopic = "mailsucker_urls"
+var kafkaTopic = "mailsucker_html"
 var kafkaMailTopic = "mails"
 
 func main() {
@@ -26,36 +24,16 @@ func main() {
 	}
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{kafkaHost},
-		Topic:   kafkaTopic,
-		GroupID: "mailsucker-group",
+		Brokers:  []string{kafkaHost},
+		Topic:    kafkaTopic,
+		GroupID:  "mailsucker-group",
+		MaxBytes: 10e6,
 	})
 
 	writer := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  []string{kafkaHost},
 		Topic:    kafkaMailTopic,
 		Balancer: &kafka.LeastBytes{},
-	})
-
-	c := colly.NewCollector()
-
-	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
-		link := e.Attr("href")
-		if strings.Contains(link, "mailto:") {
-			mail := strings.TrimPrefix(link, "mailto:")
-			if isValidMail(mail) {
-				err := writer.WriteMessages(context.Background(), kafka.Message{
-					Key:   []byte(e.Request.URL.String()),
-					Value: []byte(mail),
-				})
-				if err != nil {
-					log.Printf("Failed to write message to Kafka: %v", err)
-					return
-				}
-
-				log.Printf("Extracted mail from %s: %s", e.Request.URL.String(), mail)
-			}
-		}
 	})
 
 	for {
@@ -70,12 +48,24 @@ func main() {
 				continue
 			}
 
-			url := string(m.Key)
+			html := string(m.Value)
 
-			err = c.Visit(url)
-			if err != nil {
-				log.Printf("Failed to visit URL %s: %v", url, err)
-				continue
+			// Extract emails from the HTML using regex
+			re := regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
+			matches := re.FindAllString(html, -1)
+
+			// Write each email to Kafka
+			for _, match := range matches {
+				err = writer.WriteMessages(context.Background(), kafka.Message{
+					Key:   []byte(m.Key),
+					Value: []byte(match),
+				})
+				if err != nil {
+					log.Printf("Failed to write message to Kafka: %v", err)
+					return
+				}
+
+				log.Printf("Extracted mail from %s: %s", string(m.Key), match)
 			}
 
 			err = reader.CommitMessages(context.Background(), m)
@@ -84,8 +74,4 @@ func main() {
 			}
 		}
 	}
-}
-func isValidMail(mail string) bool {
-	re := regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
-	return re.MatchString(mail)
 }
