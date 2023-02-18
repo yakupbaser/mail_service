@@ -59,7 +59,7 @@ func main() {
 			}
 
 			if len(body) > 0 {
-				chunkSize := 1024000 // 1 MB
+				chunkSize := 512000 // 512 KB
 				for i := 0; i < len(body); i += chunkSize {
 					end := i + chunkSize
 					if end > len(body) {
